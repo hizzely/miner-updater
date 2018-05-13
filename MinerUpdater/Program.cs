@@ -25,11 +25,11 @@ namespace MinerUpdater
 
 
             // Run preexecution script
-            if (isFirstTime == "true")
+            if (!File.Exists(AppConfig.Get("LocalHashFile")))
             {
                 Console.WriteLine(
                     Log.GetTimestamp()
-                    + "It's your first time run, Skipping PreExecutionScript"
+                    + "Local Hash not found, assuming it's a first time run."
                 );
             }
             else
@@ -37,27 +37,50 @@ namespace MinerUpdater
                 string preExecAppPath = AppConfig.Get("PreExecAppPath");
                 string preExecAppArgs = AppConfig.Get("PreExecAppArgs");
 
-                var launchPXS = new ProcessMan(preExecAppPath, preExecAppArgs);
+                var launchPXS = new ProcessMan(preExecAppPath, preExecAppArgs).StartProcess(true);
 
-                if (!launchPXS.StartProcess(true))
+                if (AppConfig.Get("PreExecExpectReturnZero") == "true")
                 {
                     Console.WriteLine(
                         Log.GetTimestamp()
-                        + "Error! PXS not running/terminated normally. Restart the program."
-                    );
-                    System.Windows.Forms.MessageBox.Show(
-                        "Error! PXS not running/terminated normally. \n"
-                        + "If this is your first run, make sure 'IsFirstTime' "
-                        + "is set to 'true' on your config.", 
-                        programName + ": PreExecutionScript Error",
-                        System.Windows.Forms.MessageBoxButtons.OK,
-                        System.Windows.Forms.MessageBoxIcon.Error
+                        + "PXS running with expectation of return error code 0."
                     );
 
-                    return;
+                    if (!launchPXS)
+                    {
+                        Console.WriteLine(
+                            Log.GetTimestamp()
+                            + "Error! Your PXS script did not return the expected value."
+                        );
+                        System.Windows.Forms.MessageBox.Show(
+                            "Error! Your PXS script did not return the expected value. \n"
+                            + "Check your PXS script and restart the updater program."
+                            + "If you want the updater to ignore any returned value, "
+                            + "change PreExecExpectReturnZero to false.",
+                            programName + ": PreExecutionScript Error",
+                            System.Windows.Forms.MessageBoxButtons.OK,
+                            System.Windows.Forms.MessageBoxIcon.Error
+                        );
+
+                        return;
+                    }
+                    else
+                    {
+                        Console.WriteLine(
+                            Log.GetTimestamp()
+                            + "Success! PXS returned the expected value."
+                        );
+                    }
+                }
+                else
+                {
+                    Console.WriteLine(
+                        Log.GetTimestamp()
+                        + "Warning! PXS running without any return expectation."
+                    );
                 }
             }
-            
+
 
             // Run Update Checking
             if (!Hash.IsHashMatch(Hash.GetLocalHash(), Hash.GetServerHash()))
@@ -258,21 +281,26 @@ namespace MinerUpdater
             }
 
 
-            // 6. If "IsFirstTime" == true, set it to false now.
-            // Intended for first run only. So the Updater will continue
-            // to run because PXS wont be executed.
-            if (isFirstTime == "true")
+            // 6. Old files cleanup
+            if (Directory.Exists(AppConfig.Get("AppBackupDirectory")))
             {
-                if (AppConfig.Update("IsFirstTime", "false"))
-                {
-                    Console.WriteLine(
-                        Log.GetTimestamp()
-                        + "Updated 'IsFirstTime' to 'false'"
-                    );
-                }
+                Console.WriteLine(Log.GetTimestamp() + "Cleaning: Old Backup Files");
+                Cleanup.PreserveLatest(
+                    AppConfig.Get("AppBackupDirectory"),
+                    int.Parse(AppConfig.Get("AppBackupPreserveFileCycles"))
+                );
+            }
+            
+            if (Directory.Exists(AppConfig.Get("AppUpdateFolderName")))
+            {
+                Console.WriteLine(Log.GetTimestamp() + "Cleaning: Old Update Files");
+                Cleanup.PreserveLatest(
+                    AppConfig.Get("AppUpdateFolderName"),
+                    int.Parse(AppConfig.Get("AppUpdatePreserveFileCycles"))
+                );
             }
 
-
+            
             // 7. Finally run the actual application.
             Console.WriteLine(
                 "\n" + Log.GetTimestamp() + "Hash Match. "

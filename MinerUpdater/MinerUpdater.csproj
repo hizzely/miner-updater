@@ -47,6 +47,7 @@
     <Compile Include="Archive.cs" />
     <Compile Include="FileFolder.cs" />
     <Compile Include="Hash.cs" />
+    <Compile Include="Cleanup.cs" />
     <Compile Include="Log.cs" />
     <Compile Include="ProcessMan.cs" />
     <Compile Include="Program.cs" />
